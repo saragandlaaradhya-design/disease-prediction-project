@@ -1,0 +1,420 @@
+# Install required packages
+!pip install pandas numpy scikit-learn matplotlib seaborn
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import warnings
+warnings.filterwarnings('ignore')
+
+# Set random seed for reproducibility
+np.random.seed(42)
+
+# Create synthetic symptom-disease dataset (since we don't have a real dataset)
+def create_symptom_dataset(n_samples=2000):
+    """
+    Create a synthetic dataset for disease prediction based on symptoms
+    In a real scenario, you would load an actual medical dataset
+    """
+    diseases = [
+        'Common Cold', 'Influenza', 'Migraine', 'Allergic Rhinitis',
+        'Gastroenteritis', 'Bronchitis', 'Sinusitis', 'Urinary Tract Infection',
+        'Pneumonia', 'Hypertension', 'Diabetes', 'Asthma', 'Arthritis'
+    ]
+    
+    # Common symptoms across diseases
+    symptoms = [
+        'fever', 'cough', 'headache', 'fatigue', 'nausea', 
+        'sore_throat', 'runny_nose', 'body_aches', 'chills',
+        'shortness_of_breath', 'chest_pain', 'dizziness',
+        'abdominal_pain', 'vomiting', 'diarrhea', 'sneezing',
+        'itchy_eyes', 'joint_pain', 'frequent_urination',
+        'excessive_thirst', 'blurred_vision'
+    ]
+    
+    # Disease-symptom mapping (simplified)
+    disease_symptom_map = {
+        'Common Cold': ['runny_nose', 'sneezing', 'sore_throat', 'cough', 'fatigue'],
+        'Influenza': ['fever', 'cough', 'headache', 'body_aches', 'fatigue', 'chills'],
+        'Migraine': ['headache', 'nausea', 'dizziness', 'blurred_vision'],
+        'Allergic Rhinitis': ['sneezing', 'itchy_eyes', 'runny_nose'],
+        'Gastroenteritis': ['nausea', 'vomiting', 'diarrhea', 'abdominal_pain', 'fever'],
+        'Bronchitis': ['cough', 'fatigue', 'shortness_of_breath', 'chest_pain', 'fever'],
+        'Sinusitis': ['headache', 'runny_nose', 'fever', 'fatigue'],
+        'Urinary Tract Infection': ['frequent_urination', 'abdominal_pain'],
+        'Pneumonia': ['fever', 'cough', 'shortness_of_breath', 'chest_pain', 'fatigue'],
+        'Hypertension': ['headache', 'dizziness'],
+        'Diabetes': ['excessive_thirst', 'frequent_urination', 'fatigue', 'blurred_vision'],
+        'Asthma': ['cough', 'shortness_of_breath', 'chest_pain'],
+        'Arthritis': ['joint_pain', 'fatigue']
+    }
+    
+    # Create empty dataframe
+    df = pd.DataFrame(columns=symptoms + ['disease'])
+    
+    for _ in range(n_samples):
+        # Randomly select a disease
+        disease = np.random.choice(diseases)
+        
+        # Get typical symptoms for this disease
+        typical_symptoms = disease_symptom_map[disease]
+        
+        # Create symptom vector (1 if symptom present, 0 if not)
+        symptom_vector = [0] * len(symptoms)
+        
+        # Set typical symptoms to 1 with high probability
+        for symptom in typical_symptoms:
+            if symptom in symptoms:
+                idx = symptoms.index(symptom)
+                # 80% chance of having typical symptom
+                symptom_vector[idx] = 1 if np.random.random() < 0.8 else 0
+        
+        # Add some random non-typical symptoms with low probability
+        for i in range(len(symptoms)):
+            if symptoms[i] not in typical_symptoms:
+                # 10% chance of having non-typical symptom
+                symptom_vector[i] = 1 if np.random.random() < 0.1 else 0
+        
+        # Add the disease label
+        symptom_vector.append(disease)
+        
+        # Add to dataframe
+        df.loc[len(df)] = symptom_vector
+    
+    return df, symptoms, diseases
+
+# Create dataset
+print("Creating synthetic symptom-disease dataset...")
+df, symptoms, diseases = create_symptom_dataset(2000)
+print(f"Dataset created with {len(df)} samples, {len(symptoms)} symptoms, and {len(diseases)} diseases.")
+print("\nFirst 5 rows of the dataset:")
+print(df.head())
+
+# Data preprocessing
+print("\n" + "="*50)
+print("DATA PREPROCESSING")
+print("="*50)
+
+# Check for missing values
+print(f"Missing values: {df.isnull().sum().sum()}")
+
+# Encode the target variable (disease)
+label_encoder = LabelEncoder()
+df['disease_encoded'] = label_encoder.fit_transform(df['disease'])
+
+# Separate features and target
+X = df[symptoms]
+y = df['disease_encoded']
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+print(f"Training set size: {X_train.shape}")
+print(f"Testing set size: {X_test.shape}")
+
+# Scale features (optional for some algorithms)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Initialize models
+models = {
+    'Logistic Regression': LogisticRegression(max_iter=1000, random_state=42),
+    'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
+    'Naive Bayes': GaussianNB(),
+    'Support Vector Machine': SVC(kernel='linear', probability=True, random_state=42),
+}
+
+# Train and evaluate models
+print("\n" + "="*50)
+print("MODEL TRAINING AND EVALUATION")
+print("="*50)
+
+results = {}
+for name, model in models.items():
+    # Train the model
+    if name in ['Logistic Regression', 'SVM']:
+        model.fit(X_train_scaled, y_train)
+        y_pred = model.predict(X_test_scaled)
+        y_pred_proba = model.predict_proba(X_test_scaled)
+    else:
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        y_pred_proba = model.predict_proba(X_test)
+    
+    # Calculate accuracy
+    accuracy = accuracy_score(y_test, y_pred)
+    
+    # Cross-validation score
+    if name in ['Logistic Regression', 'SVM']:
+        cv_scores = cross_val_score(model, X_train_scaled, y_train, cv=5)
+    else:
+        cv_scores = cross_val_score(model, X_train, y_train, cv=5)
+    
+    results[name] = {
+        'model': model,
+        'accuracy': accuracy,
+        'cv_mean': cv_scores.mean(),
+        'cv_std': cv_scores.std(),
+        'y_pred': y_pred,
+        'y_pred_proba': y_pred_proba
+    }
+    
+    print(f"\n{name}:")
+    print(f"  Accuracy: {accuracy:.4f}")
+    print(f"  Cross-validation: {cv_scores.mean():.4f} (+/- {cv_scores.std()*2:.4f})")
+
+# Compare model performance
+print("\n" + "="*50)
+print("MODEL COMPARISON")
+print("="*50)
+
+# Create comparison dataframe
+comparison_df = pd.DataFrame({
+    'Model': list(results.keys()),
+    'Accuracy': [results[m]['accuracy'] for m in results.keys()],
+    'CV Mean Score': [results[m]['cv_mean'] for m in results.keys()],
+    'CV Std': [results[m]['cv_std'] for m in results.keys()]
+}).sort_values('Accuracy', ascending=False)
+
+print(comparison_df)
+
+# Visualization of model performance
+plt.figure(figsize=(12, 6))
+
+# Accuracy comparison
+plt.subplot(1, 2, 1)
+models_list = list(results.keys())
+accuracies = [results[m]['accuracy'] for m in models_list]
+bars = plt.bar(models_list, accuracies, color=['blue', 'green', 'orange', 'red'])
+plt.title('Model Accuracy Comparison', fontsize=14, fontweight='bold')
+plt.xlabel('Model', fontsize=12)
+plt.ylabel('Accuracy', fontsize=12)
+plt.ylim([0, 1])
+plt.xticks(rotation=45, ha='right')
+
+# Add value labels on bars
+for bar, acc in zip(bars, accuracies):
+    height = bar.get_height()
+    plt.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+             f'{acc:.3f}', ha='center', va='bottom')
+
+# Confusion matrix for best model
+plt.subplot(1, 2, 2)
+best_model_name = comparison_df.iloc[0]['Model']
+best_model_results = results[best_model_name]
+cm = confusion_matrix(y_test, best_model_results['y_pred'])
+
+# Plot confusion matrix
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+            xticklabels=label_encoder.classes_, 
+            yticklabels=label_encoder.classes_)
+plt.title(f'Confusion Matrix - {best_model_name}', fontsize=14, fontweight='bold')
+plt.xlabel('Predicted', fontsize=12)
+plt.ylabel('Actual', fontsize=12)
+plt.xticks(rotation=45, ha='right')
+
+plt.tight_layout()
+plt.show()
+
+# Feature importance for tree-based models
+if 'Random Forest' in models:
+    print("\n" + "="*50)
+    print("FEATURE IMPORTANCE (Random Forest)")
+    print("="*50)
+    
+    rf_model = models['Random Forest']
+    feature_importance = pd.DataFrame({
+        'symptom': symptoms,
+        'importance': rf_model.feature_importances_
+    }).sort_values('importance', ascending=False)
+    
+    print("Top 10 most important symptoms:")
+    print(feature_importance.head(10))
+    
+    # Plot feature importance
+    plt.figure(figsize=(10, 6))
+    top_features = feature_importance.head(15)
+    plt.barh(range(len(top_features)), top_features['importance'].values)
+    plt.yticks(range(len(top_features)), top_features['symptom'].values)
+    plt.xlabel('Importance', fontsize=12)
+    plt.title('Top 15 Symptom Importances (Random Forest)', fontsize=14, fontweight='bold')
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+    plt.show()
+
+# Disease prediction function
+def predict_disease(symptom_list, model_name='Random Forest'):
+    """
+    Predict disease based on provided symptoms
+    """
+    if model_name not in models:
+        print(f"Model {model_name} not found. Available models: {list(models.keys())}")
+        return None
+    
+    # Create symptom vector
+    symptom_vector = [0] * len(symptoms)
+    for symptom in symptom_list:
+        if symptom in symptoms:
+            idx = symptoms.index(symptom)
+            symptom_vector[idx] = 1
+        else:
+            print(f"Warning: Symptom '{symptom}' not in our database.")
+    
+    # Convert to dataframe
+    symptom_df = pd.DataFrame([symptom_vector], columns=symptoms)
+    
+    # Get model and predict
+    model_info = results[model_name]
+    model = model_info['model']
+    
+    # Scale if needed
+    if model_name in ['Logistic Regression', 'SVM']:
+        symptom_scaled = scaler.transform(symptom_df)
+        probabilities = model.predict_proba(symptom_scaled)[0]
+    else:
+        probabilities = model.predict_proba(symptom_df)[0]
+    
+    # Get top predictions
+    top_n = 3
+    top_indices = np.argsort(probabilities)[-top_n:][::-1]
+    
+    print(f"\nDisease Prediction using {model_name}:")
+    print("-" * 40)
+    print(f"Input symptoms: {', '.join(symptom_list)}")
+    print("\nTop predicted diseases:")
+    
+    for i, idx in enumerate(top_indices):
+        disease_name = label_encoder.inverse_transform([idx])[0]
+        probability = probabilities[idx]
+        print(f"{i+1}. {disease_name}: {probability*100:.2f}%")
+    
+    return top_indices, probabilities
+
+# Test predictions with example symptoms
+print("\n" + "="*50)
+print("EXAMPLE PREDICTIONS")
+print("="*50)
+
+# Example 1: Common Cold symptoms
+print("\nExample 1:")
+symptoms_example1 = ['runny_nose', 'sneezing', 'sore_throat']
+predict_disease(symptoms_example1, 'Random Forest')
+
+# Example 2: Influenza symptoms
+print("\nExample 2:")
+symptoms_example2 = ['fever', 'cough', 'headache', 'body_aches', 'fatigue']
+predict_disease(symptoms_example2, 'Random Forest')
+
+# Example 3: Custom symptoms
+print("\nExample 3:")
+custom_symptoms = ['headache', 'nausea', 'dizziness']
+predict_disease(custom_symptoms, 'Random Forest')
+
+# Interactive prediction function
+def interactive_prediction():
+    """Interactive function for user to input symptoms"""
+    print("\n" + "="*50)
+    print("INTERACTIVE DISEASE PREDICTION")
+    print("="*50)
+    print("Available symptoms:")
+    for i, symptom in enumerate(symptoms):
+        print(f"{symptom}", end=", ")
+        if (i+1) % 5 == 0:
+            print()
+    
+    print("\n\nEnter symptoms separated by commas (e.g., fever,cough,headache):")
+    user_input = input("Your symptoms: ").strip()
+    
+    if user_input:
+        user_symptoms = [s.strip().lower() for s in user_input.split(',')]
+        predict_disease(user_symptoms, 'Random Forest')
+    else:
+        print("No symptoms entered.")
+
+# Uncomment to run interactive prediction
+# interactive_prediction()
+
+# Linear Regression for disease prediction (for demonstration only)
+print("\n" + "="*50)
+print("LINEAR REGRESSION (for demonstration)")
+print("="*50)
+print("Note: Linear regression is not ideal for multi-class classification.")
+print("We'll use it to predict disease probability as a demonstration.")
+
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.metrics import mean_squared_error
+
+# For linear regression, we'll predict disease probability for each class
+# This is not standard practice but shown for demonstration
+
+# We'll predict one disease at a time (binary classification)
+disease_to_predict = 'Influenza'
+binary_y = (df['disease'] == disease_to_predict).astype(int)
+
+# Split data
+X_train_lr, X_test_lr, y_train_lr, y_test_lr = train_test_split(
+    X, binary_y, test_size=0.2, random_state=42
+)
+
+# Scale features
+X_train_lr_scaled = scaler.fit_transform(X_train_lr)
+X_test_lr_scaled = scaler.transform(X_test_lr)
+
+# Train linear regression
+lr_model = LinearRegression()
+lr_model.fit(X_train_lr_scaled, y_train_lr)
+
+# Predict
+y_pred_lr = lr_model.predict(X_test_lr_scaled)
+# Convert to binary predictions (threshold 0.5)
+y_pred_binary = (y_pred_lr > 0.5).astype(int)
+
+# Evaluate
+accuracy_lr = accuracy_score(y_test_lr, y_pred_binary)
+mse_lr = mean_squared_error(y_test_lr, y_pred_lr)
+
+print(f"Linear Regression for predicting {disease_to_predict}:")
+print(f"  Accuracy: {accuracy_lr:.4f}")
+print(f"  Mean Squared Error: {mse_lr:.4f}")
+print(f"  Coefficients: {len(lr_model.coef_)}")
+print(f"  Intercept: {lr_model.intercept_:.4f}")
+
+# Summary
+print("\n" + "="*50)
+print("PROJECT SUMMARY")
+print("="*50)
+print("Disease Prediction System using Symptoms and Machine Learning")
+print(f"- Trained on {len(df)} samples with {len(symptoms)} symptoms")
+print(f"- Predicts among {len(diseases)} diseases")
+print(f"- Best model: {best_model_name} with {results[best_model_name]['accuracy']:.4f} accuracy")
+print("\nKey Features:")
+print("1. Multiple ML algorithms implemented")
+print("2. Comprehensive model evaluation")
+print("3. Symptom importance analysis")
+print("4. Interactive disease prediction")
+print("5. Visualization of results")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
